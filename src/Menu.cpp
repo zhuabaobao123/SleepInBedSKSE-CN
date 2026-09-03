@@ -138,8 +138,8 @@ namespace Menu
 			SKSE::log::info("[menu] SKSE Menu Framework not loaded, in-game settings page unavailable");
 			return;
 		}
-		SKSEMenuFramework::SetSection(kSection);
-		SKSEMenuFramework::AddSectionItem(kPage, RenderSettings);
+		SKSEMenuFramework::SetSection(_T(kSection));
+		SKSEMenuFramework::AddSectionItem(_T(kPage), RenderSettings);
 		SKSE::log::info("[menu] registered {}/{} (framework {})", kSection, kPage, SKSEMenuFramework::GetMenuFrameworkVersion());
 	}
 }
