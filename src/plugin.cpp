@@ -42,6 +42,11 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
 	SKSE::Init(a_skse);
 
+	// Load translations BEFORE Menu::Install registers the section/page
+	// names (AddSectionItem snapshots the strings at registration time,
+	// while the settings page itself re-translates on every render).
+	Localization::Load();
+
 	Settings::Load();
 	Settings::ApplyLogLevel();
 	Settings::LogSummary();
@@ -59,8 +64,6 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 	ScriptedMove::Install();
 	SleepPackage::Install();
 	Undress::Install();
-
-	Localization::Load();
 
 	if (!Detours::Commit()) {
 		SKSE::log::error("SleepInBedSKSE failed to commit hooks, aborting load");
