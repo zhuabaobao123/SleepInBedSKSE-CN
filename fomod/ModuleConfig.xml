@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
+	<moduleName>Sleep in Bed SKSE - Localization</moduleName>
+
+	<requiredInstallFiles>
+		<folder source="core" destination="" />
+	</requiredInstallFiles>
+
+	<installSteps order="Explicit">
+		<installStep name="Interface language">
+			<optionalFileGroups>
+				<group type="SelectExactlyOne" name="Choose the interface language">
+					<plugins order="Explicit">
+						<plugin name="English">
+							<description>English interface (identical to the original mod).</description>
+							<files><folder source="lang\en" destination="" priority="0" /></files>
+							<typeDescriptor><type name="Optional" /></typeDescriptor>
+						</plugin>
+						<plugin name="Русский">
+							<description>Russian interface.</description>
+							<files><folder source="lang\ru" destination="" priority="0" /></files>
+							<typeDescriptor><type name="Optional" /></typeDescriptor>
+						</plugin>
+						<plugin name="日本語">
+							<description>Japanese interface.</description>
+							<files><folder source="lang\ja" destination="" priority="0" /></files>
+							<typeDescriptor><type name="Optional" /></typeDescriptor>
+						</plugin>
+						<plugin name="한국어">
+							<description>Korean interface.</description>
+							<files><folder source="lang\ko" destination="" priority="0" /></files>
+							<typeDescriptor><type name="Optional" /></typeDescriptor>
+						</plugin>
+						<plugin name="Français">
+							<description>French interface.</description>
+							<files><folder source="lang\fr" destination="" priority="0" /></files>
+							<typeDescriptor><type name="Optional" /></typeDescriptor>
+						</plugin>
+						<plugin name="Deutsch">
+							<description>German interface.</description>
+							<files><folder source="lang\de" destination="" priority="0" /></files>
+							<typeDescriptor><type name="Optional" /></typeDescriptor>
+						</plugin>
+						<plugin name="Español">
+							<description>Spanish interface.</description>
+							<files><folder source="lang\es" destination="" priority="0" /></files>
+							<typeDescriptor><type name="Optional" /></typeDescriptor>
+						</plugin>
+						<plugin name="简体中文">
+							<description>Chinese (Simplified) interface.</description>
+							<files><folder source="lang\zh-CN" destination="" priority="0" /></files>
+							<typeDescriptor><type name="Optional" /></typeDescriptor>
+						</plugin>
+					</plugins>
+				</group>
+			</optionalFileGroups>
+		</installStep>
+	</installSteps>
+</config>

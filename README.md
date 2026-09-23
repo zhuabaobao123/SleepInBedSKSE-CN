@@ -9,6 +9,24 @@
 - 许可证：**GPL-3.0**（见 `LICENSE`）。1.3.3 为 MIT，1.3.5 作者随 CommonLibSSE-NG 改为 GPL-3.0，原样保留。
 - 本仓库 = 上游 v1.3.5 源码 + 中文汉化提交。上游更新时，用新源码包覆盖 `src/`、`include/` 即可增量重编。
 
+## 多语言交付（FOMOD）
+
+`lang/` 下是 8 种语言的对照 JSON（key = 英文原文，只改 value）：
+
+| 代码 | 语言 |
+|---|---|
+| `en` | English（value = key 原样，即还原英文） |
+| `ru` | Русский |
+| `ja` | 日本語 |
+| `ko` | 한국어 |
+| `fr` | Français |
+| `de` | Deutsch |
+| `es` | Español |
+| `zh-CN` | 简体中文 |
+
+`fomod/` 是打包配置：`core/`（含 DLL + 中文注释 INI）为必需文件，
+语言包 `SelectExactlyOne` 单选。**同一时刻只加载一份 JSON，切换语言 = 换文件。**
+
 ## 汉化方式（源码编译 + I18N 外置 JSON，绝不二进制打补丁）
 
 - DLL 内保留英文原文；翻译全部外置在 `SleepInBedSKSE.json`（扁平 `{"英文原文": "中文"}`，
