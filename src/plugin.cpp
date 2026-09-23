@@ -3,6 +3,7 @@
 
 #include "Bed.h"
 #include "BedAccess.h"
+#include "Campfire.h"
 #include "Detours.h"
 #include "Followers.h"
 #include "Hearthfire.h"
@@ -24,6 +25,7 @@ namespace
 		case SKSE::MessagingInterface::kDataLoaded:
 			// Form lookups need the data handler ready.
 			Hearthfire::PrepareCoffin();
+			Campfire::PrepareBedroll();
 			Undress::PrepareAnimations();
 			break;
 		case SKSE::MessagingInterface::kNewGame:

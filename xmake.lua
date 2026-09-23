@@ -3,7 +3,7 @@
 includes("E:/CommonLibVR")
 
 set_project("SleepInBedSKSE")
-set_version("1.3.3")
+set_version("1.3.5")
 
 set_languages("c++23")
 set_warnings("allextra")

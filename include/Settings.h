@@ -19,8 +19,8 @@ struct Settings
 	float followerNightStart{ 20.0f };
 	float followerNightEnd{ 6.0f };
 
-	std::int32_t undressPlayer{ 2 };
-	std::int32_t undressNpcs{ 2 };
+	std::int32_t undressPlayer{ 0 };
+	std::int32_t undressNpcs{ 0 };
 	bool         undressAnimations{ true };
 
 	bool loggingEnabled{ false };

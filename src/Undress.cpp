@@ -171,17 +171,34 @@ namespace
 		return actor->IsPlayerRef() ? settings.undressPlayer : settings.undressNpcs;
 	}
 
+	bool Tagged(RE::TESObjectARMO* armor, RE::BGSKeyword* keyword)
+	{
+		return keyword && armor->HasKeyword(keyword);
+	}
+
+	bool IsSlotless(RE::TESObjectARMO* armor)
+	{
+		return armor->GetSlotMask() == RE::BGSBipedObjectForm::BipedObjectSlot::kNone;
+	}
+
+	bool IsWig(RE::TESObjectARMO* armor)
+	{
+		using Slot = RE::BGSBipedObjectForm::BipedObjectSlot;
+		if (!armor->HasPartOf(Slot::kHair) && !armor->HasPartOf(Slot::kLongHair)) {
+			return false;
+		}
+		return !Tagged(armor, g_keywords.armorHelmet) && !Tagged(armor, g_keywords.clothingHead);
+	}
+
 	bool Keeps(RE::TESObjectARMO* armor, std::int32_t mode)
 	{
 		if ((armor->GetFormFlags() & RE::TESObjectARMO::RecordFlags::kNonPlayable) != 0) {
 			return true;
 		}
+		if (IsSlotless(armor) || IsWig(armor)) {
+			return true;
+		}
 		return mode == kModeExceptTorso && armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kBody);
-	}
-
-	bool Tagged(RE::TESObjectARMO* armor, RE::BGSKeyword* keyword)
-	{
-		return keyword && armor->HasKeyword(keyword);
 	}
 
 	Piece Classify(RE::TESObjectARMO* armor)

@@ -1,6 +1,7 @@
 #include "Bed.h"
 
 #include "BedAccess.h"
+#include "Campfire.h"
 #include "Detours.h"
 #include "Followers.h"
 #include "Hearthfire.h"
@@ -32,6 +33,8 @@ namespace
 	bool                g_lieDownAfterSneak = false;
 	RE::ObjectRefHandle g_bedAfterSneak;
 	std::uint32_t       g_sneakExitFrames = 0;
+	bool                g_bedHeadingSaved = false;
+	float               g_bedHeading = 0.0f;
 
 	using ActivateButtonFn = void(RE::ActivateHandler*, RE::ButtonEvent*, RE::PlayerControlsData*);
 	using FurnitureActivateFn = bool(RE::TESFurniture*, RE::TESObjectREFR*, RE::TESObjectREFR*, std::uint8_t, RE::TESBoundObject*, std::int32_t);
@@ -106,6 +109,39 @@ namespace
 		return input.x != 0.0f || input.y != 0.0f;
 	}
 
+	bool CameraInFirstPerson()
+	{
+		auto* camera = RE::PlayerCamera::GetSingleton();
+		return camera && camera->IsInFirstPerson();
+	}
+
+	// First-person look input rotates the player even while lying in bed; the engine only
+	// suppresses that for sitting. Keep the heading from when the player lay down and
+	// re-apply it whenever the body is visible, so the camera can't twist it in bed.
+	void KeepBedHeading(RE::PlayerCharacter* player)
+	{
+		if (!g_bedHeadingSaved) {
+			g_bedHeadingSaved = true;
+			g_bedHeading = player->data.angle.z;
+			return;
+		}
+		if (!CameraInFirstPerson() && player->data.angle.z != g_bedHeading) {
+			player->SetHeading(g_bedHeading);
+		}
+	}
+
+	void RestoreBedHeading(RE::Actor* player)
+	{
+		if (!g_bedHeadingSaved) {
+			return;
+		}
+		g_bedHeadingSaved = false;
+		if (player->data.angle.z != g_bedHeading) {
+			SKSE::log::info("[bed heading] undoing first person look rotation {:.3f} -> {:.3f} on wake", player->data.angle.z, g_bedHeading);
+			player->SetHeading(g_bedHeading);
+		}
+	}
+
 	void ActivateButtonWithContext(RE::ActivateHandler* handler, RE::ButtonEvent* event, RE::PlayerControlsData* data)
 	{
 		ScopedFlag context(tl_directActivation);
@@ -172,8 +208,10 @@ namespace
 			DropQueuedSleepMenu();
 		}
 		if (state != RE::SIT_SLEEP_STATE::kIsSleeping) {
+			g_bedHeadingSaved = false;
 			return;
 		}
+		KeepBedHeading(player);
 		Followers::Tick();
 		if (player->IsOnMount() || !WantsToMove()) {
 			return;
@@ -189,6 +227,9 @@ namespace
 
 	bool ActivateWithSleepChecks(RE::TESFurniture* furniture, RE::TESObjectREFR* target, RE::TESObjectREFR* activator, std::uint8_t flag, RE::TESBoundObject* object, std::int32_t count)
 	{
+		if (Campfire::OpenSleepMenuInstead(target, activator)) {
+			return true;
+		}
 		auto*      player = Player();
 		const bool playerFromStanding = player && activator == player && player->AsActorState()->GetSitSleepState() == RE::SIT_SLEEP_STATE::kNormal;
 		if (playerFromStanding && tl_directActivation) {
@@ -196,6 +237,11 @@ namespace
 			const bool allowed = !bed || BedAccess::AllowsSleep(player, target);
 			SKSE::log::info("[bed availability] furniture {:08X} bed={} allowed={}", target ? target->GetFormID() : 0, bed, allowed);
 			if (!allowed) {
+				return true;
+			}
+			if (bed && Bed::HasPendingSentence()) {
+				SKSE::log::info("[jail] offering to serve the sentence instead of lying down in {:08X}", target->GetFormID());
+				Bed::OfferServeSentence();
 				return true;
 			}
 			if (bed && !tl_ignoreSneak && player->IsSneaking()) {
@@ -251,6 +297,9 @@ namespace
 				Followers::OnPlayerLayDown(process->GetOccupiedFurniture().get().get());
 			} else if (state == static_cast<std::int32_t>(RE::SIT_SLEEP_STATE::kWantToWake) || state < static_cast<std::int32_t>(RE::SIT_SLEEP_STATE::kWantToSleep)) {
 				Followers::OnPlayerStoodUp();
+			}
+			if (actor && wasSleeping && state != static_cast<std::int32_t>(RE::SIT_SLEEP_STATE::kIsSleeping)) {
+				RestoreBedHeading(actor);
 			}
 		}
 		if (actor) {
@@ -391,6 +440,16 @@ namespace Bed
 
 	void OfferServeSentence()
 	{
+		auto* player = Player();
+		if (!player) {
+			return;
+		}
+		const auto state = player->AsActorState()->GetSitSleepState();
+		if (state != RE::SIT_SLEEP_STATE::kNormal) {
+			// ServePrisonTime moves the player; doing that while in or entering furniture drops them at the worldspace
+			SKSE::log::info("[jail] serve sentence ignored while not standing (state {})", static_cast<std::int32_t>(state));
+			return;
+		}
 		auto* collection = RE::GameSettingCollection::GetSingleton();
 		if (!collection) {
 			return;

@@ -1,13 +1,13 @@
-# Sleep in Bed SKSE · 中文汉化版（v1.3.3）
+# Sleep in Bed SKSE · 中文汉化版（v1.3.5）
 
 汉化 [Sleep in Bed SKSE](https://www.nexusmods.com/skyrimspecialedition/mods/189803)
 （Nexus 189803，作者 Elzar125）的 SKSE 插件 DLL。躺下再睡、随从跟睡/同床、睡前卸装。
 
 ## 上游与版权
 
-- 上游源码：Nexus 页面 MISC 区 `Sleep In Bed SKSE - Source Code v1.3.3`（作者未建公开 Git 仓库）。
-- 许可证：MIT（见 `LICENSE`），原样保留。
-- 本仓库 = 上游 v1.3.3 源码 + 中文汉化提交。上游更新时，用新源码包覆盖 `src/`、`include/` 即可增量重编。
+- 上游源码：Nexus 页面 MISC 区 `Sleep In Bed SKSE - Source Code v1.3.5`（作者未建公开 Git 仓库）。
+- 许可证：**GPL-3.0**（见 `LICENSE`）。1.3.3 为 MIT，1.3.5 作者随 CommonLibSSE-NG 改为 GPL-3.0，原样保留。
+- 本仓库 = 上游 v1.3.5 源码 + 中文汉化提交。上游更新时，用新源码包覆盖 `src/`、`include/` 即可增量重编。
 
 ## 汉化方式（源码编译 + I18N 外置 JSON，绝不二进制打补丁）
 
@@ -15,13 +15,14 @@
   与 DLL 同名，插件自身只读写 `.ini`，该名无占用）。
 - **删掉 JSON 即还原英文**；改词条即改界面，无需重编译。
 - 实现：`include/Localization.h`、`src/Localization.cpp`（rapidjson 加载，缺 key 回退英文），
-  `src/Menu.cpp` 全部 UI 字符串经 `_T()` 查表；`_T` 定义见 `include/Localization.h`。
+  `src/Menu.cpp` 全部 UI 字符串经 `_T()` 查表（含按键名表与按键捕获界面）；`_T` 定义见 `include/Localization.h`。
+- 字母/数字/功能键名（`A`…`Z`、`F1`…`F12`、`LB`/`RB` 等）按惯例保留英文。
 - `SleepInBedSKSE.ini` 注释已汉化（键值不动，UTF-8 无 BOM）。
 
 ## 与上游的差异（除汉化外）
 
 - `src/plugin.cpp` 为本仓库重写（上游源码包不含入口文件）：按模块接口实现
-  `SKSEPluginLoad`，`kDataLoaded` 时查表（棺材/换装动画），`kNewGame`/`kPreLoadGame` 时清状态。
+  `SKSEPluginLoad`，`kDataLoaded` 时查表（棺材 / 帐篷铺盖 / 换装动画），`kNewGame`/`kPreLoadGame` 时清状态。
 - `include/PCH.h` 加 `NOMINMAX`（新版 SDK 必需）。
 - `extern/SKSEMenuFramework.h` 取自 QTR-Modding/SKSE-Menu-Framework-3（动态加载，无需链接）。
 - 构建基于 CommonLibVR（作者原用 `extern/CommonLibVR`），`--skyrim_vr=y`，SE/AE/VR 通用。

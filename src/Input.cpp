@@ -38,16 +38,6 @@ namespace
 		{ RE::BSWin32GamepadDevice::Key::kRightTrigger, kGamepadCodeBase + 15 },
 	} };
 
-	std::int32_t GamepadCode(std::uint32_t buttonMask)
-	{
-		for (const auto& [mask, code] : kGamepadCodes) {
-			if (mask == buttonMask) {
-				return code;
-			}
-		}
-		return -1;
-	}
-
 	bool IsSleepKey(const RE::ButtonEvent& event)
 	{
 		const auto key = Settings::Get().sleepKey;
@@ -59,7 +49,7 @@ namespace
 		case RE::INPUT_DEVICE::kKeyboard:
 			return static_cast<std::int32_t>(event.GetIDCode()) == key;
 		case RE::INPUT_DEVICE::kGamepad:
-			return GamepadCode(event.GetIDCode()) == key;
+			return Input::GamepadCode(event.GetIDCode()) == key;
 		default:
 			return false;
 		}
@@ -102,6 +92,16 @@ namespace
 
 namespace Input
 {
+	std::int32_t GamepadCode(std::uint32_t buttonMask)
+	{
+		for (const auto& [mask, code] : kGamepadCodes) {
+			if (mask == buttonMask) {
+				return code;
+			}
+		}
+		return -1;
+	}
+
 	void Install()
 	{
 		REL::Relocation<std::uintptr_t> vtable{ RE::VTABLE_MenuOpenHandler[0] };
