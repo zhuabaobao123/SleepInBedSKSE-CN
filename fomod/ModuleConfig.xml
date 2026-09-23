@@ -47,8 +47,10 @@
 							<typeDescriptor><type name="Optional" /></typeDescriptor>
 						</plugin>
 						<plugin name="简体中文">
-							<description>Chinese (Simplified) interface.</description>
-							<files><folder source="lang\zh-CN" destination="" priority="0" /></files>
+							<description>Chinese (Simplified) interface, with a Chinese-annotated INI.</description>
+							<files>
+								<folder source="lang\zh-CN" destination="" priority="0" />
+							</files>
 							<typeDescriptor><type name="Optional" /></typeDescriptor>
 						</plugin>
 					</plugins>

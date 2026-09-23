@@ -1,0 +1,45 @@
+[Input]
+; Key that opens the sleep menu while in bed. -1 = the game's Wait binding.
+; Keyboard = DirectX scan code; gamepad = 266 (D-pad up) to 281 (right trigger).
+iSleepKey=-1
+
+[Bed]
+; 1 = lie down in beds owned by others and in beds an NPC has reserved; 0 = refuse them.
+bAllowOwnedBeds=0
+; 1 = open the sleep menu by itself once the player has lain down.
+bOpenSleepMenuOnLieDown=0
+
+[Followers]
+; 1 = followers lie down in free beds nearby when the player does, and get up with the player.
+bEnabled=1
+; 1 = a following spouse takes the free second marker of the player's double bed.
+bSpouseSharesBed=1
+; 1 = a nearby non-following spouse also joins the player's double bed.
+bHomeSpouseSharesBed=1
+; 1 = the nearest follower takes the free second marker of the player's bed when no spouse does.
+bFollowersShareBed=0
+; 1 = use any free bed; 0 = only unowned beds or beds owned by the player or the follower.
+bIgnoreOwnership=0
+; Distance in game units in which beds are searched (from the player and from the follower).
+fSearchRadius=1024
+; 1 = followers only go to bed during the night window below.
+bNightOnly=0
+; Start of the night window, game hour 0-23.99.
+fNightStart=20
+; End of the night window, game hour 0-23.99 (wraps past midnight if it ends before it starts).
+fNightEnd=6
+
+[Undress]
+; What comes off before lying down and goes back on after getting up:
+; 0 = nothing, 1 = everything worn, 2 = everything except the piece on the body slot.
+; Wigs (hair-slot items that are not helmets or hoods) always stay on.
+; The player.
+iPlayer=0
+; The followers and the spouse this mod sends to bed.
+iNpcs=0
+; 1 = with Immersive Equipping Animations installed, take pieces off and put them on one by one with its animations.
+bAnimations=1
+
+[Logging]
+; 1 = write SleepInBedSKSE.log
+bEnabled=0
