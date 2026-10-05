@@ -12,6 +12,7 @@
 #include "ScriptedMove.h"
 #include "Settings.h"
 #include "SleepPackage.h"
+#include "Sleepwear.h"
 #include "Undress.h"
 
 namespace
@@ -27,12 +28,14 @@ namespace
 			Hearthfire::PrepareCoffin();
 			Campfire::PrepareBedroll();
 			Undress::PrepareAnimations();
+			Sleepwear::Prepare();
 			break;
 		case SKSE::MessagingInterface::kNewGame:
 		case SKSE::MessagingInterface::kPreLoadGame:
 			// Drop per-game state before a fresh or loaded game starts.
 			Followers::Reset();
 			Undress::Reset();
+			Sleepwear::Reset();
 			break;
 		default:
 			break;

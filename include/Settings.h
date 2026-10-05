@@ -1,9 +1,19 @@
 #pragma once
 
+#include "Bedtime.h"
+
 #include <cstdint>
+#include <string>
+#include <vector>
 
 struct Settings
 {
+	struct Outfit
+	{
+		std::string name;
+		std::string items;
+	};
+
 	std::int32_t sleepKey{ -1 };
 
 	bool allowOwnedBeds{ false };
@@ -19,9 +29,13 @@ struct Settings
 	float followerNightStart{ 20.0f };
 	float followerNightEnd{ 6.0f };
 
-	std::int32_t undressPlayer{ 0 };
-	std::int32_t undressNpcs{ 0 };
-	bool         undressAnimations{ true };
+	bool keepBodyPiece{ false };
+	bool undressAnimations{ true };
+
+	bool                bedtimePerPlace{ false };
+	Bedtime::Column     bedtimePlayer{};
+	Bedtime::Column     bedtimeFollowers{};
+	std::vector<Outfit> outfits{};
 
 	bool loggingEnabled{ false };
 

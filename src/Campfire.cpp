@@ -9,9 +9,6 @@
 
 namespace
 {
-	// _Camp_Bedroll_ActualF: the bedroll Campfire's tent system places 2000 units above
-	// every tent and bedding, activated from _Camp_TentSystem.PlayerSleep purely to spawn
-	// the sleep menu.
 	constexpr RE::FormID       kBedrollLocalId = 0x007EFA;
 	constexpr std::string_view kCampfirePlugin = "Campfire.esm";
 

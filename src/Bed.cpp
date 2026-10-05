@@ -115,9 +115,6 @@ namespace
 		return camera && camera->IsInFirstPerson();
 	}
 
-	// First-person look input rotates the player even while lying in bed; the engine only
-	// suppresses that for sitting. Keep the heading from when the player lay down and
-	// re-apply it whenever the body is visible, so the camera can't twist it in bed.
 	void KeepBedHeading(RE::PlayerCharacter* player)
 	{
 		if (!g_bedHeadingSaved) {
@@ -446,7 +443,6 @@ namespace Bed
 		}
 		const auto state = player->AsActorState()->GetSitSleepState();
 		if (state != RE::SIT_SLEEP_STATE::kNormal) {
-			// ServePrisonTime moves the player; doing that while in or entering furniture drops them at the worldspace
 			SKSE::log::info("[jail] serve sentence ignored while not standing (state {})", static_cast<std::int32_t>(state));
 			return;
 		}

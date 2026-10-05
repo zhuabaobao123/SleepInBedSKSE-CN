@@ -2,6 +2,7 @@
 
 #include "Input.h"
 #include "Settings.h"
+#include "Sleepwear.h"
 
 #include <RE/Skyrim.h>
 #include <SKSE/SKSE.h>
@@ -56,7 +57,6 @@ namespace
 		{ 209, "Page Down" }, { 210, "Insert" }, { 211, "Delete" },
 	};
 
-	// Order matches the gamepad mapping in Input.cpp (266 .. 281).
 	constexpr const char* kGamepadNames[] = {
 		"D-pad Up", "D-pad Down", "D-pad Left", "D-pad Right", "Start", "Back",
 		"Left Stick", "Right Stick", "LB", "RB", "A", "B", "X", "Y", "LT", "RT"
@@ -79,30 +79,6 @@ namespace
 		return std::string(_T("scancode ")) + std::to_string(a_code);
 	}
 
-	// The undress-mode combo needs "\0"-separated items, so the three entries
-	// are translated individually and joined at render time.
-	const char* UndressModeItems()
-	{
-		static char buffer[256];
-		buffer[0] = '\0';
-		std::size_t offset = 0;
-		for (const char* key : { "Off", "Everything", "Everything except torso" }) {
-			const char* text = _T(key);
-			const auto  len = std::strlen(text) + 1;
-			if (offset + len + 1 > sizeof(buffer)) {
-				break;
-			}
-			std::memcpy(buffer + offset, text, len);
-			offset += len;
-		}
-		if (offset < sizeof(buffer)) {
-			buffer[offset] = '\0';
-		}
-		return buffer;
-	}
-
-	// The input callback runs outside the render pass, so the capture state and
-	// the captured code are handed over atomically.
 	std::atomic<bool>                     g_capturingKey{ false };
 	std::atomic<std::int32_t>             g_capturedKey{ kNoCapturedKey };
 	SKSEMenuFramework::Model::InputEvent* g_inputEvent{ nullptr };
@@ -161,17 +137,11 @@ namespace
 		return released;
 	}
 
-	void __stdcall RenderSettings()
+	bool RenderSettingsTab(Settings& s)
 	{
-		auto& s = Settings::Mutable();
-		bool  dirty = false;
-		ui::PushItemWidth(kItemWidth);
+		bool dirty = false;
 
 		ui::SeparatorText(_T("Input"));
-		if (const auto captured = g_capturedKey.exchange(kNoCapturedKey); captured != kNoCapturedKey) {
-			s.sleepKey = captured;
-			dirty = true;
-		}
 		ui::AlignTextToFramePadding();
 		ui::TextUnformatted((std::string(_T("Sleep key: ")) + KeyNameFor(s.sleepKey)).c_str());
 		ui::SetItemTooltip("%s", _T("Opens the sleep menu while lying in bed (or the serve-sentence prompt when a jail sentence is pending). The Wait key is the game's Wait binding."));
@@ -218,12 +188,7 @@ namespace
 		ui::EndDisabled();
 		ui::EndDisabled();
 
-		ui::SeparatorText(_T("Undress"));
-		dirty |= ui::Combo(_T("Player"), &s.undressPlayer, UndressModeItems());
-		ui::SetItemTooltip("%s", _T("What the player takes off before lying down and puts back on after getting up. Everything: all worn armor, clothing, jewellery and the shield. Everything except torso: the piece on the body slot stays on. Worn weapons, shields, torches and quivers come off too."));
-		dirty |= ui::Combo(_T("Followers and spouse"), &s.undressNpcs, UndressModeItems());
-		ui::SetItemTooltip("%s", _T("The same for the followers and the spouse this mod sends to bed. NPCs sleeping on their own schedules are never touched."));
-		dirty |= Toggle("Use Immersive Equipping Animations", &s.undressAnimations, "With Immersive Equipping Animations installed, pieces come off and go on one by one with its animations: the player undresses standing at the bed before lying down and dresses after getting up, followers undress where they stand before walking to their bed. Off, or without that mod, everything is swapped instantly.");
+		dirty |= Sleepwear::RenderBedtime();
 
 		ui::SeparatorText(_T("Logging"));
 		if (Toggle("Write log file", &s.loggingEnabled, "Write SleepInBedSKSE.log with settings, hook installation and bed decisions. Takes effect immediately.")) {
@@ -231,19 +196,52 @@ namespace
 			dirty = true;
 		}
 
-		ui::PopItemWidth();
 		ui::Separator();
 		if (ui::Button(_T("Reset to defaults"))) {
 			Settings::ResetToDefaults();
+			Sleepwear::ScheduleReload();
 		}
-		ui::SetItemTooltip("%s", _T("Restore every setting to its default and save the INI."));
+		ui::SetItemTooltip("%s", _T("Restore every setting to its default and save the INI. Outfits are kept."));
 		ui::SameLine();
 		if (ui::Button(_T("Reload INI"))) {
 			Settings::Load();
 			Settings::ApplyLogLevel();
+			Sleepwear::ScheduleReload();
 		}
 		ui::SetItemTooltip("%s", _T("Discard the current values and read the INI again."));
 		ui::TextDisabled("%s", kIniPath);
+		return dirty;
+	}
+
+	void __stdcall RenderPage()
+	{
+		auto& s = Settings::Mutable();
+		bool dirty = Sleepwear::SyncMenu();
+		if (const auto captured = g_capturedKey.exchange(kNoCapturedKey); captured != kNoCapturedKey) {
+			s.sleepKey = captured;
+			dirty = true;
+		}
+
+		ui::PushItemWidth(kItemWidth);
+		if (ui::BeginTabBar("##sleepInBedTabs")) {
+			if (ui::BeginTabItem(_T("Settings"))) {
+				dirty |= RenderSettingsTab(s);
+				ui::EndTabItem();
+			}
+			const auto outfits = Sleepwear::OutfitCount();
+			std::string outfitsLabel;
+			if (outfits == 0) {
+				outfitsLabel = std::string(_T("Outfits")) + "###outfits";
+			} else {
+				outfitsLabel = std::string(_T("Outfits (")) + std::to_string(outfits) + ")###outfits";
+			}
+			if (ui::BeginTabItem(outfitsLabel.c_str())) {
+				Sleepwear::RenderOutfits();
+				ui::EndTabItem();
+			}
+			ui::EndTabBar();
+		}
+		ui::PopItemWidth();
 
 		if (dirty) {
 			Settings::Save();
@@ -260,7 +258,7 @@ namespace Menu
 			return;
 		}
 		SKSEMenuFramework::SetSection(_T(kSection));
-		SKSEMenuFramework::AddSectionItem(_T(kPage), RenderSettings);
+		SKSEMenuFramework::AddSectionItem(_T(kPage), RenderPage);
 		g_inputEvent = SKSEMenuFramework::AddInputEvent(OnInput);
 		SKSE::log::info("[menu] registered {}/{} (framework {})", kSection, kPage, SKSEMenuFramework::GetMenuFrameworkVersion());
 	}

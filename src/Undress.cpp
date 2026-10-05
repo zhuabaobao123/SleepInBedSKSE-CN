@@ -3,6 +3,7 @@
 #include "Bed.h"
 #include "Settings.h"
 #include "SleepPackage.h"
+#include "Sleepwear.h"
 
 #include <RE/Skyrim.h>
 #include <SKSE/SKSE.h>
@@ -21,15 +22,18 @@ namespace
 {
 	constexpr std::uint32_t kUniqueID = 0x53494255;
 	constexpr std::uint32_t kRecordType = 0x554E4452;
-	constexpr std::uint32_t kRecordVersion = 2;
+	constexpr std::uint32_t kRecordVersion = 3;
 	constexpr std::uint32_t kReconcileFrames = 90;
 	constexpr std::uint32_t kStrandedTicks = 4;
 	constexpr std::uint32_t kAbandonedTicks = 20;
 	constexpr float         kFurnitureRange = 512.0f;
-	constexpr std::int32_t  kModeOff = 0;
-	constexpr std::int32_t  kModeExceptTorso = 2;
+	constexpr std::int32_t  kModeOff = Bedtime::kModeOff;
+	constexpr std::int32_t  kModeExceptTorso = Bedtime::kModeExceptTorso;
+	constexpr std::int32_t  kModeOutfit = Bedtime::kModeOutfit;
 	constexpr std::uint8_t  kSlotDefault = 0;
 	constexpr std::uint8_t  kSlotLeft = 1;
+	constexpr std::uint8_t kKindRestore = 0;
+	constexpr std::uint8_t kKindDoff = 1;
 
 	constexpr std::string_view kAnimationPlugin = "Immersive Equipping Animations.esp";
 	constexpr RE::FormID       kPlayerGuardId = 0x00080C;
@@ -95,6 +99,7 @@ namespace
 	{
 		RE::FormID   form;
 		std::uint8_t slot;
+		std::uint8_t kind;
 	};
 
 	std::unordered_map<RE::FormID, std::vector<Remembered>> g_records;
@@ -105,7 +110,7 @@ namespace
 	Keywords                                                 g_keywords;
 	RE::TESGlobal*                                           g_playerGuard = nullptr;
 	RE::TESGlobal*                                           g_followerGuard = nullptr;
-	bool                                                     g_animations = false;
+	std::atomic<bool>                                        g_animations{ false };
 	bool                                                     g_restoreFirstPerson = false;
 
 	void Schedule(std::function<void()> task)
@@ -139,13 +144,14 @@ namespace
 	{
 		RE::TESBoundObject* object = nullptr;
 		std::int32_t        count = 0;
+		bool                worn = false;
 	};
 
 	Held Carried(RE::Actor* actor, RE::FormID itemID)
 	{
 		for (const auto& [object, data] : EquippableInventory(actor)) {
 			if (object && object->GetFormID() == itemID && data.first > 0) {
-				return { object, data.first };
+				return { object, data.first, data.second && data.second->IsWorn() };
 			}
 		}
 		return {};
@@ -154,21 +160,6 @@ namespace
 	bool InBed(RE::Actor* actor)
 	{
 		return actor->AsActorState()->GetSitSleepState() >= RE::SIT_SLEEP_STATE::kWantToSleep;
-	}
-
-	std::int32_t ModeFor(RE::Actor* actor)
-	{
-		const auto& settings = Settings::Get();
-		if (actor->IsPlayerRef()) {
-			return settings.undressPlayer;
-		}
-		return SleepPackage::Holds(actor) ? settings.undressNpcs : kModeOff;
-	}
-
-	std::int32_t AssignedMode(RE::Actor* actor)
-	{
-		const auto& settings = Settings::Get();
-		return actor->IsPlayerRef() ? settings.undressPlayer : settings.undressNpcs;
 	}
 
 	bool Tagged(RE::TESObjectARMO* armor, RE::BGSKeyword* keyword)
@@ -190,13 +181,16 @@ namespace
 		return !Tagged(armor, g_keywords.armorHelmet) && !Tagged(armor, g_keywords.clothingHead);
 	}
 
-	bool Keeps(RE::TESObjectARMO* armor, std::int32_t mode)
+	bool Keeps(RE::Actor* actor, RE::TESObjectARMO* armor, std::int32_t mode)
 	{
 		if ((armor->GetFormFlags() & RE::TESObjectARMO::RecordFlags::kNonPlayable) != 0) {
 			return true;
 		}
 		if (IsSlotless(armor) || IsWig(armor)) {
 			return true;
+		}
+		if (mode == kModeOutfit) {
+			return Sleepwear::PartOfOutfit(actor, armor);
 		}
 		return mode == kModeExceptTorso && armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kBody);
 	}
@@ -244,7 +238,7 @@ namespace
 				continue;
 			}
 			if (auto* armor = object->As<RE::TESObjectARMO>()) {
-				if (!Keeps(armor, mode)) {
+				if (!Keeps(actor, armor, mode)) {
 					worn.push_back({ object, Classify(armor), kSlotDefault });
 				}
 				continue;
@@ -311,14 +305,25 @@ namespace
 		}
 	}
 
-	void Remember(RE::FormID actorID, RE::FormID itemID, std::uint8_t slot)
+	bool Has(const std::vector<Remembered>& items, RE::FormID itemID, std::uint8_t kind)
+	{
+		return std::any_of(items.begin(), items.end(), [&](const Remembered& r) { return r.form == itemID && r.kind == kind; });
+	}
+
+	void Remember(RE::FormID actorID, RE::FormID itemID, std::uint8_t slot, std::uint8_t kind = kKindRestore)
 	{
 		auto&      items = g_records[actorID];
-		const auto found = std::find_if(items.begin(), items.end(), [&](const Remembered& r) { return r.form == itemID && r.slot == slot; });
+		const auto found = std::find_if(items.begin(), items.end(), [&](const Remembered& r) { return r.form == itemID && r.slot == slot && r.kind == kind; });
 		if (found == items.end()) {
-			items.push_back({ itemID, slot });
+			items.push_back({ itemID, slot, kind });
 		}
 		SyncCount();
+	}
+
+	bool Donned(RE::FormID actorID, RE::FormID itemID)
+	{
+		const auto record = g_records.find(actorID);
+		return record != g_records.end() && Has(record->second, itemID, kKindDoff);
 	}
 
 	void Forget(RE::FormID actorID)
@@ -328,7 +333,7 @@ namespace
 		SyncCount();
 	}
 
-	std::size_t Remembered(RE::FormID actorID)
+	std::size_t RememberedCount(RE::FormID actorID)
 	{
 		const auto record = g_records.find(actorID);
 		return record == g_records.end() ? 0 : record->second.size();
@@ -637,29 +642,68 @@ namespace
 			g_sequences.erase(g_sequences.begin() + static_cast<std::ptrdiff_t>(i));
 			ReleaseGuard(actorID);
 			SKSE::log::info("[undress] {:08X} animated {} {}", actorID, Name(direction), outcome == Outcome::kFinished ? "finished" : outcome == Outcome::kInstant ? "cut short, remaining pieces swapped instantly" : "aborted");
+			if (direction == Direction::kUndress && (outcome == Outcome::kFinished || outcome == Outcome::kInstant)) {
+				if (auto* actor = FindActor(actorID)) {
+					Sleepwear::OnUndressed(actor);
+				}
+			}
 		}
 		for (auto& callback : callbacks) {
 			callback();
 		}
 	}
 
-	void UndressNow(RE::FormID actorID, std::int32_t mode)
+	void UndressNow(RE::FormID actorID)
 	{
 		auto* actor = FindActor(actorID);
 		if (!actor || !actor->Is3DLoaded() || !InBed(actor)) {
 			return;
 		}
-		const auto worn = WornEquipment(actor, mode);
-		if (worn.empty()) {
+		const auto mode = Sleepwear::ModeFor(actor);
+		if (mode == kModeOff) {
 			return;
 		}
-		std::uint32_t refused = 0;
-		for (const auto& item : worn) {
-			if (!TakeOff(actor, item.object->GetFormID(), item.slot)) {
-				++refused;
+		auto worn = WornEquipment(actor, mode);
+		std::erase_if(worn, [&](const WornItem& item) { return Donned(actorID, item.object->GetFormID()); });
+		if (!worn.empty()) {
+			std::uint32_t refused = 0;
+			for (const auto& item : worn) {
+				if (!TakeOff(actor, item.object->GetFormID(), item.slot)) {
+					++refused;
+				}
+			}
+			SKSE::log::info("[undress] {:08X} mode {}: {} piece(s) taken off, {} queued, {} remembered", actorID, mode, worn.size(), refused, RememberedCount(actorID));
+		}
+		Sleepwear::OnUndressed(actor);
+	}
+
+	void TakeOffDonned(RE::Actor* actor, const std::vector<Remembered>& items)
+	{
+		auto* manager = RE::ActorEquipManager::GetSingleton();
+		if (!manager) {
+			return;
+		}
+		std::uint32_t doffed = 0;
+		for (const auto& item : items) {
+			if (item.kind != kKindDoff || Has(items, item.form, kKindRestore)) {
+				continue;
+			}
+			const auto held = Carried(actor, item.form);
+			if (held.object && held.worn && manager->UnequipObject(actor, held.object, nullptr, 1, nullptr, false, false, false, false)) {
+				++doffed;
 			}
 		}
-		SKSE::log::info("[undress] {:08X} mode {}: {} piece(s) taken off, {} queued, {} remembered", actorID, mode, worn.size(), refused, Remembered(actorID));
+		if (doffed > 0) {
+			SKSE::log::info("[sleepwear] {:08X} doffed {} piece(s)", actor->GetFormID(), doffed);
+		}
+	}
+
+	bool NeedsPutOn(RE::Actor* actor, const std::vector<Remembered>& items, const Remembered& item)
+	{
+		if (item.kind != kKindRestore) {
+			return false;
+		}
+		return !Has(items, item.form, kKindDoff) || !Carried(actor, item.form).worn;
 	}
 
 	void DressNow(RE::FormID actorID, bool animate)
@@ -675,9 +719,14 @@ namespace
 			}
 			return;
 		}
+		const auto& items = record->second;
+		TakeOffDonned(actor, items);
 		if (animate && Eligible(actor) && !FindSequence(actorID)) {
 			std::vector<Step> steps;
-			for (const auto& remembered : record->second) {
+			for (const auto& remembered : items) {
+				if (!NeedsPutOn(actor, items, remembered)) {
+					continue;
+				}
 				auto* object = Carried(actor, remembered.form).object;
 				if (!object) {
 					continue;
@@ -692,7 +741,10 @@ namespace
 		}
 		std::uint32_t equipped = 0;
 		std::uint32_t missing = 0;
-		for (const auto& remembered : record->second) {
+		for (const auto& remembered : items) {
+			if (!NeedsPutOn(actor, items, remembered)) {
+				continue;
+			}
 			if (PutOn(actor, remembered.form, remembered.slot)) {
 				++equipped;
 			} else {
@@ -793,9 +845,13 @@ namespace
 				if (version >= 2 && !Read(intfc, slot)) {
 					return false;
 				}
+				std::uint8_t kind = kKindRestore;
+				if (version >= 3 && !Read(intfc, kind)) {
+					return false;
+				}
 				RE::FormID itemID = 0;
 				if (actorKnown && intfc->ResolveFormID(savedItem, itemID)) {
-					Remember(actorID, itemID, slot);
+					Remember(actorID, itemID, slot, kind == kKindDoff ? kKindDoff : kKindRestore);
 				}
 			}
 		}
@@ -815,6 +871,7 @@ namespace
 			for (const auto& remembered : items) {
 				intfc->WriteRecordData(remembered.form);
 				intfc->WriteRecordData(remembered.slot);
+				intfc->WriteRecordData(remembered.kind);
 			}
 		}
 		SKSE::log::info("[undress] co-save written for {} actor(s)", g_records.size());
@@ -828,7 +885,7 @@ namespace
 		std::uint32_t version = 0;
 		std::uint32_t length = 0;
 		while (intfc->GetNextRecordInfo(type, version, length)) {
-			if (type != kRecordType || (version != 1 && version != 2)) {
+			if (type != kRecordType || version < 1 || version > kRecordVersion) {
 				continue;
 			}
 			if (!ReadRecord(intfc, version)) {
@@ -877,7 +934,12 @@ namespace Undress
 			serialization->SetFormDeleteCallback(OnFormDelete);
 		}
 		const auto& s = Settings::Get();
-		SKSE::log::info("[undress] player={} npcs={} animations={} co-save {}", s.undressPlayer, s.undressNpcs, s.undressAnimations, serialization ? "registered" : "unavailable");
+		SKSE::log::info("[undress] keepBodyPiece={} animations={} co-save {}", s.keepBodyPiece, s.undressAnimations, serialization ? "registered" : "unavailable");
+	}
+
+	bool AnimationsInstalled()
+	{
+		return g_animations;
 	}
 
 	void PrepareAnimations()
@@ -893,6 +955,16 @@ namespace Undress
 		SKSE::log::info("[undress] Immersive Equipping Animations {}", g_animations ? "found, equip animations available" : "not loaded, pieces are swapped instantly");
 	}
 
+	void RememberDonned(std::uint32_t actorID, std::uint32_t itemID)
+	{
+		Remember(actorID, itemID, kSlotDefault, kKindDoff);
+	}
+
+	bool WasDonned(std::uint32_t actorID, std::uint32_t itemID)
+	{
+		return Donned(actorID, itemID);
+	}
+
 	bool BeginBeforeBed(RE::Actor* actor, std::function<void()> onDone)
 	{
 		if (!actor || actor->IsChild() || !Eligible(actor)) {
@@ -902,7 +974,7 @@ namespace Undress
 		if (g_records.contains(actorID) || FindSequence(actorID)) {
 			return false;
 		}
-		const auto mode = AssignedMode(actor);
+		const auto mode = Sleepwear::ModeFor(actor);
 		if (mode == kModeOff) {
 			return false;
 		}
@@ -923,13 +995,12 @@ namespace Undress
 		if (!actor || actor->IsChild() || actor->IsDead()) {
 			return;
 		}
-		const auto mode = ModeFor(actor);
-		if (mode == kModeOff) {
+		if (!actor->IsPlayerRef() && !SleepPackage::Holds(actor)) {
 			return;
 		}
 		const auto actorID = actor->GetFormID();
-		Schedule([actorID, mode] {
-			UndressNow(actorID, mode);
+		Schedule([actorID] {
+			UndressNow(actorID);
 		});
 	}
 
